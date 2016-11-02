@@ -4,7 +4,7 @@
 #include "CircularBuffer.h"
 
 #define USART_BAUDRATE 9600 // Defines the baud rate
-#define BAUD_PRESCALE (((1600000/(USART_BAUDRATE*16UL)))-1) // Calculate the prescale
+#define BAUD_PRESCALE (((16000000/(USART_BAUDRATE*16UL)))-1) // Calculate the prescale
 
 volatile unsigned long timeInMillis = 0;
 volatile char received_char = -1;
