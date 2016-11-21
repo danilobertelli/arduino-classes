@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
-#include <stdbool.h>
 #include <uart.h>
 
 #define IDLE_MODE 0
@@ -15,26 +15,19 @@ volatile long interruptions = 0;  // Controls how much interruptions has fired
 volatile long bounceTime = 0;     // debounce control
 volatile long sleepTime = 0;      // Time before sleeping
 volatile long totalSleepTime = 0; // Total Time sleeping
+volatile long delayTime = 0;
+volatile bool shouldSleep = true;
 
 long get_millis() {
-    // First, we need to count how much interruptions we had and multiply it by 16320us
+    // First, we need to count how much interruptions we had and multiply it by 16384us
     // after it, get current Timer2 register value and multiply it by 64us (time between each CPU
     // tick)
-    long micros = (interruptions * 16320) + (TCNT2 * 64);
+    long micros = (interruptions * 16384) + (TCNT2 * 64);
     return micros / 1000;
-}
-
-// It waits doing nothing for delayInMs time
-void delay(long delayInMs) {
-    long currentTime = get_millis();
-    while (get_millis() - currentTime <= delayInMs) {
-        // Happily do nothings
-    }
 }
 
 void sleep_cpu() {
     SMCR |= (1<<SE);
-    delay(100); // delay time before sleep so we can flush uart buffer
     sleepTime = get_millis(); // Get current time before goes to sleep
     asm("sleep");
 }
@@ -64,9 +57,9 @@ void set_sleep_mode(char mode) {
 }
 
 // It increments the total time that CPU was sleeping
-void increment_sleep_time() {
+void increment_sleep_time(long timeInMs) {
     if (sleepTime > 0) {
-        long totalTimeSleeping = get_millis() - sleepTime;
+        long totalTimeSleeping = timeInMs - sleepTime;
         totalSleepTime = totalTimeSleeping + totalSleepTime;
     }
     sleepTime = 0; // reset value to wait next bed time
@@ -99,35 +92,46 @@ int main (void) {
 
     sei(); // Enable Global Interrupts
 
-    printf("Here we go!\n");
     while(1) {
-        printf("main() \n");
-        set_sleep_mode(POWER_SAVE_MODE);
-        sleep_cpu();
+        if (shouldSleep) {
+            set_sleep_mode(POWER_SAVE_MODE);
+            sleep_cpu();
+        }
     }
 }
 
 // Handle button interruption
 ISR (INT0_vect) {
-    increment_sleep_time(); // as the interruption woke up the CPU, get time sleeping
+    long timeNow = get_millis();
+    increment_sleep_time(timeNow); // as the interruption woke up the CPU, get time sleeping
 
     if (bounceTime == 0) {
-        bounceTime = get_millis();
+        delayTime = timeNow;
+        shouldSleep = false;
+        bounceTime = timeNow;
         printf("Time since system is booted: %ld \n", bounceTime);
         // The active time can be calculated by the difference between total time and sleep time.
         long activeTime = bounceTime - totalSleepTime;
-        printf("Total active time: %ld \n", activeTime);
+        unsigned long duty = (activeTime * 100) / bounceTime;
+        printf("Duty cycle: %d%% \n", duty);
     }
 }
 
 ISR(TIMER2_OVF_vect) {
-    increment_sleep_time(); // as the interruption woke up the CPU, get time sleeping
-
     // We reach the overflow each 16320us based on Timer2 configuration
     interruptions++;
 
+    long timeNow = ((interruptions * 16384) + (TCNT2 * 64)) / 1000;
+    increment_sleep_time(timeNow); // as the interruption woke up the CPU, get time sleeping
+
     // handle bounce control
-    if (bounceTime > 0 && get_millis() - bounceTime > 200) {
+    if (bounceTime > 0 && timeNow - bounceTime > 100) {
         bounceTime = 0;
+    }
+
+    // handle delay to sleep after print
+    if (delayTime > 0 && timeNow - delayTime > 30) {
+        delayTime = 0;
+        shouldSleep = true;
     }
 }
