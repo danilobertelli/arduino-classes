@@ -4,12 +4,13 @@
 #include <avr/io.h>
 
 // UART
+#define F_CPU 16000000UL
 #define USART_BAUDRATE 9600 // Defines the baud rate
 #define BAUD_PRESCALE (((F_CPU/(USART_BAUDRATE*16UL)))-1) // Calculate the prescale
 
 #define MAX_PLAYERS 9
 #define MAX_NOTES 100
-#define DEBUG 1 // set 0 to disable debug prints
+#define DEBUG 0 // set 0 to disable debug prints
 
 volatile long interruptions = 0;  // Controls how much interruptions has fired
 volatile long bounceTime = 0;     // debounce control
