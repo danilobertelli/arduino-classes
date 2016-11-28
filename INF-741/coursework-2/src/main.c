@@ -1,9 +1,11 @@
+#include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
-#include <uart.h>
+
+// UART
+#define USART_BAUDRATE 9600 // Defines the baud rate
+#define BAUD_PRESCALE (((F_CPU/(USART_BAUDRATE*16UL)))-1) // Calculate the prescale
 
 #define MAX_PLAYERS 9
 #define MAX_NOTES 100
@@ -25,6 +27,14 @@ volatile int current_player_note = 0;
 
 void round_reset();
 
+void print_message(char message[]) {
+    int size = strlen(message);
+    for (int i = 0; i < size; i++){
+        while (( UCSR0A & (1<<UDRE0))  == 0){};
+        UDR0 = message[i];
+    }
+}
+
 long get_millis() {
     // First, we need to count how much interruptions we had and multiply it by 16384us
     // after it, get current Timer2 register value and multiply it by 64us (time between each CPU
@@ -37,7 +47,8 @@ long get_millis() {
 void reset_players() {
     // before any new round, check players status
     if (DEBUG == 1) {
-        printf("\nLast player, reset! \n");
+        char message[] = "\nLast player, reset! \n";
+        print_message(message);
     }
     for (int i = 0; i < nro_players; i++) {
         if(players[i] == 1) {
@@ -90,7 +101,9 @@ void round_turn() {
         }
     }
 
-    printf("Player %d\n", current_player + 1);
+    char message[15];
+    sprintf(message, "Player %d\n", current_player + 1);
+    print_message(message);
     current_player_note = 0;
     player_time = get_millis();
 }
@@ -101,7 +114,9 @@ void round_start() {
 
     if (active == 1) {
         // we already have a winner
-        printf("\nGame over! Player %d won\n",  find_winner());
+        char message[50];
+        sprintf(message, "\nGame over! Player %d won\n", find_winner());
+        print_message(message);
         round_reset();
         return;
     } else {
@@ -113,7 +128,9 @@ void round_start() {
 
         // increments round
         round++;
-        printf("\nROUND %d\n", round);
+        char message[15];
+        sprintf(message, "\nROUND = %d \n", round);
+        print_message(message);
 
         round_turn();
     }
@@ -125,8 +142,8 @@ void round_reset() {
     N = 0;
     current_player = -1;
     current_player_note = 0;
-    nro_players = 0;
-    interruptions = 0; // clear timer 
+    nro_players = -1;
+    interruptions = 0; // clear timer
 
     // reset players
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -136,33 +153,36 @@ void round_reset() {
     for (int i = 0; i < MAX_NOTES; i++) {
         notes[i] = '0';
     }
-    printf("\nWelcome to the follow the leader game! Please enter the number of players: [2-9]\n");
-    int count = 0;
-    scanf("%d", &count);
-    while (count < 2 || count > 9) {
-        printf("Enter a valid number of players\n");
-        scanf("%d", &count);
-    }
+    char message[] = "\nWelcome to the follow the leader game! Please enter the number of players: [2-9]\n";
+    print_message(message);
+
+    do {
+        while((UCSR0A & ( 1 << RXC0 )) == 0 ){
+            // do nothing until receive an number
+        }
+        // convert to int
+        nro_players = UDR0 - '0';
+        if (nro_players > 9 && nro_players < 2) {
+            char message[] = "Enter a valid number of players\n";
+            print_message(message);
+        }
+    } while (nro_players < 2 || nro_players > 9);
 
     if (DEBUG == 1) {
-        printf("Number of players: %d\n", count);
+        char message[50];
+        sprintf(message, "Number of players: %d \n", nro_players);
+        print_message(message);
     }
 
     // active count players
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < nro_players; i++) {
         players[i] = 0;
     }
 
-    nro_players = count;
     round_start();
 }
 
 int main (void) {
-    // Initialize UART
-    uart_init();
-    stdout = &uart_output;
-    stdin  = &uart_input;
-
     // Configure button interruptions 2
     DDRD  &= ~(1 << DDD2);    // PD2 (PCINT0 pin) is now an input
     PORTD |=  (1 << PORTD2);  // PD2 is now with pull-up enabled
@@ -187,6 +207,12 @@ int main (void) {
     TCCR2A = 0x00;
     TCCR2B = (1<<CS22) | (1<<CS21) | (1<<CS20);  // Preescaler 1024 (or 0x07)
 
+    // Enable UART
+    UCSR0B |= (1<<RXEN0)  | (1<<TXEN0);                     // Enables transmitter and receiver hardware
+    UCSR0C |= (1<<UCSZ00) | (1<<UCSZ01);                    // Use 8-bit character sizes
+    UBRR0H  = (BAUD_PRESCALE >> 8);                         // Set the Baud Rate Register High
+    UBRR0L  = BAUD_PRESCALE;
+
     sei(); // Enable Global Interrupts
 
     round_reset();
@@ -202,7 +228,8 @@ ISR (INT0_vect) {
     if (bounceTime == 0) {
         bounceTime = timeNow;
         if (DEBUG == 1) {
-            printf("C");
+            char message[] = "C";
+            print_message(message);
         }
 
         if (current_player_note == N) {
@@ -216,7 +243,8 @@ ISR (INT0_vect) {
             } else {
                 // Player missed the note.. game over for him
                 players[current_player] = -1;
-                printf("Incorrect sequence! You have been eliminated.\n");
+                char message[] = "Incorrect sequence! You have been eliminated.\n";
+                print_message(message);
                 round_start();
             }
         }
@@ -231,7 +259,8 @@ ISR (INT1_vect) {
         player_time = timeNow;
         bounceTime2 = timeNow;
         if (DEBUG == 1) {
-            printf("F");
+            char message[] = "F";
+            print_message(message);
         }
 
         if (current_player_note == N) {
@@ -245,7 +274,8 @@ ISR (INT1_vect) {
             } else {
                 // Player missed the note.. game over for him
                 players[current_player] = -1;
-                printf("Incorrect sequence! You have been eliminated.\n");
+                char message[] = "Incorrect sequence! You have been eliminated.\n";
+                print_message(message);
                 round_start();
             }
         }
@@ -272,7 +302,8 @@ ISR(TIMER2_OVF_vect) {
     if (player_time > 0 && timeNow - player_time > 5000) {
         player_time = 0;
         players[current_player] = -1;
-        printf("Time expired. You have been eliminated!\n");
+        char message[] = "Time expired. You have been eliminated!\n";
+        print_message(message);
         round_start();
     }
 }
