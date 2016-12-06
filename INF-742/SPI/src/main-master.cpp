@@ -26,8 +26,7 @@ void blink() {
     digitalWrite(SS, LOW);
 
     // Send message
-    SPI.transfer('x');
-    Serial.println("Sending..");
+    SPI.transfer('X');
 
     // Disable slave select
     digitalWrite(SS, HIGH);
