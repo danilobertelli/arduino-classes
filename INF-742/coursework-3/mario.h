@@ -88,7 +88,6 @@
 #define NOTE_D8  4699
 #define NOTE_DS8 4978
 
-#define melodyPin 3
 //Mario main theme melody
 int melody[] = {
   NOTE_E7, NOTE_E7, 0, NOTE_E7,
@@ -143,9 +142,8 @@ void play_melody() {
 
       int pauseBetweenNotes = noteDuration * 1.30;
 
-      delay(pauseBetweenNotes);
-
-      //vTaskDelay( pauseBetweenNotes / portTICK_PERIOD_MS ); // wait for one second
+      //delay(pauseBetweenNotes);
+      vTaskDelay( pauseBetweenNotes / portTICK_PERIOD_MS ); // wait for one second
 
 
       // stop the tone playing:

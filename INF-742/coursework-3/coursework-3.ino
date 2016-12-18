@@ -1,5 +1,6 @@
 #include <Arduino_FreeRTOS.h>
 #include <math.h>
+#define melodyPin 3
 #include "mario.h"
 
 #define IDLE_MODE 0
@@ -10,7 +11,6 @@
 
 // Button interrupt pin
 const byte interruptPin = 2;
-#define melodyPin 3
 
 volatile long global_sample_counter = 0;
 volatile long sum_adc_values = 0;
@@ -138,7 +138,7 @@ void TaskButtonClick() {
       Serial.println(sum_adc_values);
       releaseOutput = false;
     }
-    vTaskDelay( 200 / portTICK_PERIOD_MS ); // Wait 100ms
+    vTaskDelay( 200 / portTICK_PERIOD_MS ); // Wait 200ms
   }
 }
 
