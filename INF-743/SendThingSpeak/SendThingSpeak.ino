@@ -7,9 +7,8 @@
 rgb_lcd lcd;
 
 const char* server = "184.106.153.149";
-char* ssid = "SSID";
-char* password = "PASSWORD";
-WiFiClient client;
+char* ssid = "WiFI - SSID";
+char* password = "Password";
 
 void setup() {
   Serial.begin(9600);        // start serial for output
@@ -81,15 +80,14 @@ float getHumidity() {
 }
 
 void updateThingSpeakServer(String temperature, String humidity){
-  if (client.connect(server,80)) { //   "184.106.153.149" or api.thingspeak.com
+  if (WiFi.status() == WL_CONNECTED) {
     Serial.println("connected");
     Serial.print("Temperature: ");
     Serial.print(temperature);
     Serial.print(" degrees Celcius : "); 
     Serial.println(humidity);
 
-
-    String command = "curl --data \"api_key=MY_API_KEY=";
+    String command = "curl --data \"api_key=YOUR_KEY&field1=";
     command += temperature;
     command += "&field2=";
     command += humidity;
@@ -102,6 +100,5 @@ void updateThingSpeakServer(String temperature, String humidity){
     Serial.println("final:");
     Serial.println(finalCommand);
   }
-  client.stop();
   delay(20000); // ThingSpeak will only accept updates every 15 seconds.
 }
